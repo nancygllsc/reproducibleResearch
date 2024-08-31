@@ -1,0 +1,126 @@
+---
+title: "Project 1"
+author: "Nancy"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r initial setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<br><br>
+
+### 1. Loading and preprocessing the data:
+```{r}
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", "activity_data.zip")
+unzip("activity_data.zip")
+act <- read.csv("activity.csv", stringsAsFactors = F)
+```
+
+Install ggplot2 library
+```{r ggplot2, echo = FALSE}
+# install lubridate for date analysis
+x = 0
+tryCatch( expr = {
+        library(ggplot2)
+        x = 1
+    }
+)
+if (x == 0) {
+    install.packages("ggplot2")
+    library(ggplot2)
+}
+```
+
+Convert the dates to date format
+```{r}
+act$date <- as.Date(act$date)
+```
+
+<br><br>
+
+### 2. What is mean total number of steps taken per day?
+
+#### Histogram:
+```{r}
+agg0 <- aggregate(steps ~ date, FUN = sum, data = act)
+qplot(agg0$steps)
+```
+
+#### mean and median:
+
+**Mean** of steps taken each day:
+```{r}
+(agg1 <- aggregate(steps ~ date, FUN = mean, data = act))
+```
+
+**Median** number of steps taken each day:
+```{r}
+(agg2 <- aggregate(steps ~ date, FUN = median, data = act))
+```
+
+<br><br>
+
+### 3. What is the average daily activity pattern?
+
+#### Time series plot:
+```{r}
+qplot(agg1$date, agg1$steps) +
+    geom_line(aes(x = agg1$date, y = agg1$steps), colour = "blue")
+```
+
+#### The 5-minute interval contains the max number of steps:
+```{r}
+loc <- which(act$steps == max(na.omit(act$steps)))
+act[loc,]
+```
+
+<br><br>
+
+### 4. Imputing missing values:
+
+In this case **mean imputation** is used
+```{r}
+avg <- mean(na.omit(act$steps))
+avg <- floor(avg)  # round down
+```
+
+assign avg to all NA in a new dataset:
+```{r}
+imputed <- act
+
+for (i in 1:length(imputed$steps)) {
+    if (is.na(imputed$steps[i])) {
+        imputed$steps[i] <- avg
+    }
+}
+```
+
+#### Histogram after missing values are imputed:
+```{r}
+agg3 <- aggregate(steps ~ date, FUN = sum, data = act)
+qplot(agg3$steps)
+```
+
+<br><br>
+
+### 5. Differences in activity patterns between weekdays and weekends:
+
+Panel plot:
+```{r}
+loc <- which(weekdays(imputed$date) %in% c("Saturday", "Sunday"))
+weekday <- imputed[-loc,]
+weekend <- imputed[loc,]
+agg4 <- aggregate(steps ~ interval, data = weekday, FUN = mean)
+agg5 <- aggregate(steps ~ interval, data = weekend, FUN = mean)
+
+agg4$w <- rep("weekday", length(agg4[,1]))
+agg5$w <- rep("weekend", length(agg5[,1]))
+agg4 <- rbind(agg4, agg5)
+
+ggplot(data = agg4, mapping = aes(x = interval, y = steps)) +
+    geom_line() + facet_wrap(~w, nrow = 2)
+```
