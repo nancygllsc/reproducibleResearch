@@ -1,0 +1,153 @@
+---
+title: "Storm Data Analysis"
+author: "Nancy"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# Impact of Severe Weather Events on Public Health and Economic Consequences
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Introduction
+Severe weather events such as storms can result in significant public health and economic challenges for communities. Fatalities, injuries, and property damage are common outcomes of such events, and minimizing their impact is a priority for disaster preparedness and response. This report analyzes data from the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database to understand the types of weather events that most affect population health and have the greatest economic consequences.
+
+## Data
+The NOAA storm database includes data on major storms and weather events across the United States from 1950 through November 2011. It records event characteristics such as location, fatalities, injuries, and property damage. The analysis focuses on event types (EVTYPE) and their related public health and economic impacts.
+
+## Questions
+- Which types of events are most harmful to population health?
+- Which types of events have the greatest economic consequences?
+## Data Processing
+For this analysis, data was extracted and preprocessed to focus on relevant variables such as event types, fatalities, injuries, property damage, and crop damage. Only the most significant events were considered, and data was aggregated to identify the top 10 event types for both public health and economic impacts.
+
+##Population Health Impact
+The event types were grouped by the total number of fatalities and injuries. The top 10 event types were visualized in a bar plot.
+
+##Economic Impact
+Property and crop damage values were standardized using exponent indicators (PROPDMGEXP and CROPDMGEXP), and the total cost was calculated. The top 10 events with the highest economic consequences were also visualized.
+
+## Results
+1. Population Health Impact
+The analysis of fatalities and injuries shows that tornadoes have the most severe impact on public health, causing the highest number of both fatalities and injuries.
+
+2. Economic Impact
+In terms of economic consequences, floods and hurricanes/typhoons were found to cause the greatest damage, with significant costs in both property and crop damage.
+
+
+
+```{r echo=FALSE,include=TRUE ,message=FALSE}
+## Loading packages
+library(R.utils)
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(knitr)
+
+```
+### Data Download and Loading
+```{r echo=FALSE,include=TRUE ,message=FALSE}
+if (!file.exists("stormdata.csv.bz2")) {
+    url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+    download.file(url, "stormdata.csv.bz2")
+    bunzip2("stormdata.csv.bz2", "stormdata.csv", remove = FALSE)
+}
+
+storm <- data.table::fread("stormdata.csv", fill = TRUE, header = TRUE)
+print("Data: ")
+length(unique(storm$EVTYPE))
+kable(str(storm), caption = "Storm Data")
+
+```
+
+### Data Subsetting
+```{r echo=FALSE,include=TRUE ,message=FALSE}
+storm2 <- storm %>%
+  select(c("EVTYPE", "FATALITIES", "INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP")) %>%
+  rename_all(tolower)
+
+kable(str(storm2), caption = "Data subsetted")
+
+```
+
+### Function to convert exponent values
+
+```{r echo=TRUE,include=TRUE ,message=TRUE}
+convert_exponent <- function(exp) {
+  if (exp == "H" || exp == "h") return(1e2)
+  if (exp == "K" || exp == "k") return(1e3)
+  if (exp == "M" || exp == "m") return(1e6)
+  if (exp == "B" || exp == "b") return(1e9)
+  return(1)
+}
+```
+### Population Health Analysis (Fatalities & Injuries)
+```{r echo=FALSE,include=TRUE ,message=FALSE}
+pop_health <- storm2 %>%
+  group_by(evtype) %>%
+  summarize(
+    fatalities = sum(fatalities, na.rm = TRUE),
+    injuries = sum(injuries, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(fatalities), desc(injuries)) %>%
+  slice(1:10) %>%
+  pivot_longer(cols = c(fatalities, injuries), names_to = "type", values_to = "value")
+
+kable(str(pop_health),caption = "Population Health Analysis Data")
+```
+
+### Economic Consequences Analysis (Property & Crop Damage)
+
+```{r echo=FALSE,include=TRUE ,message=FALSE}
+storm2 <- storm2 %>%
+  mutate(
+    propdmg = propdmg * sapply(propdmgexp, convert_exponent),
+    cropdmg = cropdmg * sapply(cropdmgexp, convert_exponent)
+  )
+
+economic <- storm2 %>%
+  group_by(evtype) %>%
+  summarize(
+    property_damage = sum(propdmg, na.rm = TRUE),
+    crop_damage = sum(cropdmg, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(property_damage), desc(crop_damage)) %>%
+  slice(1:10) %>%
+  pivot_longer(cols = c(property_damage, crop_damage), names_to = "type", values_to = "value")
+
+kable(str(economic), caption = "Economic Consequences Data")
+```
+### Visualization: Population Health (Fatalities & Injuries)
+```{r echo=FALSE,include=TRUE ,message=FALSE}
+ggplot(pop_health, aes(x = reorder(evtype, -value), y = value, fill = type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Event Type", y = "Count", title = "Top 10 Weather Events by Fatalities and Injuries") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values = c("red", "blue"))
+```
+
+### Visualization: Economic Damage (Property & Crop Damage)
+
+```{r echo=FALSE,include=TRUE ,message=FALSE}
+ggplot(economic, aes(x = reorder(evtype, -value), y = value / 1e6, fill = type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Event Type", y = "Damage (in millions USD)", title = "Top 10 Weather Events by Economic Damage") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values = c("darkgreen", "lightgreen"))
+```
+
+
+## Conclusion:
+
+This analysis highlights the importance of focusing on tornadoes to mitigate risks to population health. Improved infrastructure and early warning systems could help reduce injuries and fatalities. In terms of economic damage, the most costly events—floods and hurricanes/typhoons—warrant investment in innovative technologies and robust infrastructure to protect property and agricultural assets.
+
+By addressing these key areas, communities can better prepare for severe weather events and minimize their detrimental effects.
+
+Tornadoes are the most harmful to population health, causing the highest number of fatalities and injuries.
+Floods and hurricanes/typhoons result in the greatest economic damage, with billions in property and crop loss.
+```
+
